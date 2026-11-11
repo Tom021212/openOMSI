@@ -800,7 +800,30 @@ impl TrafficSim {
                         .and_then(|v| v.iter().filter(|e| !e.3 && e.0 != i).min_by(|a, b| (a.1 - self.cars[a.0].tail).total_cmp(&(b.1 - self.cars[b.0].tail))))
                         .map(|e| self.cars[e.0].id);
                     if explain {
-                        why.push(format!("exit {} full on lane {lane} ({space:.1} m, {promised:.1} m promised)", exit.0));
+                        let blocker = on_lane
+                            .get(&lane)
+                            .and_then(|v| {
+                                v.iter()
+                                    .filter(|e| !e.3 && e.0 != i)
+                                    .min_by(|a, b| (a.1 - self.cars[a.0].tail).total_cmp(&(b.1 - self.cars[b.0].tail)))
+                            })
+                            .map(|e| {
+                                let c = &self.cars[e.0];
+                                format!(
+                                    "car {} ({}) s={:.1} rear={:.1} lat={:.2} v={:.1}",
+                                    c.id,
+                                    c.vehicle.ty.def.type_name,
+                                    e.1,
+                                    e.1 - c.tail,
+                                    e.2,
+                                    c.state.speed
+                                )
+                            })
+                            .unwrap_or_else(|| "no matching vehicle".to_string());
+                        why.push(format!(
+                            "exit {} full on lane {lane} ({space:.1} m, {promised:.1} m promised; blocker: {blocker})",
+                            exit.0
+                        ));
                     }
                     return (true, last);
                 }
