@@ -511,10 +511,12 @@ impl TrafficSim {
                 (st.change.is_some(), "already changing lanes"),
                 (self.cars[i].is_rail(), "rail vehicle"),
                 (st.change_cooldown > 0.0, "lane-change cooldown"),
-                (stuck < 4.0, "stopped for less than 4 s"),
-                (!standing, "lead is not a standing obstacle"),
                 (self.cars[i].light_hold, "held by traffic light"),
                 (self.cars[i].yielding, "giving way at a junction"),
+                (gap.is_none(), "no vehicle directly ahead"),
+                (gap.is_some_and(|d| d > 25.0), "obstacle is more than 25 m ahead"),
+                (lane.length() - st.s < 9.0 && st.planned_next.is_none(), "too close to the end of the lane"),
+                (!st.route.is_empty() && self.cars[i].next_stop().is_some_and(|(ri, _)| ri <= st.route_index), "own stop is on the current route segment"),
             ]
             .into_iter()
             .filter_map(|(condition, reason)| condition.then_some(reason))
