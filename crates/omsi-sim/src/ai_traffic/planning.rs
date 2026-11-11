@@ -507,7 +507,20 @@ impl TrafficSim {
         let stuck = self.cars[i].stopped;
         if stuck > 20.0 && standing && omsi_cfg::flags::OMSI_DEBUG_STUCK.is_set() && (self.time * 0.2).fract() < 0.01 {
             let lane = &self.net.lanes[st.lane];
-            log::info!("t={:.1}: car {} behind an obstacle {:.1} m for {stuck:.0} s: change {:?} route {} cooldown {:.1} light {} yielding {} left {:?} right {:?} left clear {:?}", self.time, self.cars[i].id, gap.unwrap_or(-1.0), st.change.map(|c| (c.to, c.t, c.wait, c.bypass, c.length)), st.route.len(), st.change_cooldown, self.cars[i].light_hold, self.cars[i].yielding, lane.left, lane.right, lane.left.map(|l| { let s_side = st.s / lane.length().max(1.0) * self.net.lanes[l].length(); (self.open_to(i, l), self.lane_clear(i, l, s_side, 12.0, 30.0, by_lane), self.can_merge(i, l, s_side, by_lane)) }));
+            let blocked = [
+                (st.change.is_some(), "already changing lanes"),
+                (self.cars[i].is_rail(), "rail vehicle"),
+                (st.change_cooldown > 0.0, "lane-change cooldown"),
+                (stuck < 4.0, "stopped for less than 4 s"),
+                (!standing, "lead is not a standing obstacle"),
+                (self.cars[i].light_hold, "held by traffic light"),
+                (self.cars[i].yielding, "giving way at a junction"),
+            ]
+            .into_iter()
+            .filter_map(|(condition, reason)| condition.then_some(reason))
+            .collect::<Vec<_>>()
+            .join(", ");
+            log::info!("t={:.1}: car {} behind an obstacle {:.1} m for {stuck:.0} s: bypass blocked by [{}]; change {:?} route {} cooldown {:.1} light {} yielding {} left {:?} right {:?} left clear {:?}", self.time, self.cars[i].id, gap.unwrap_or(-1.0), blocked, st.change.map(|c| (c.to, c.t, c.wait, c.bypass, c.length)), st.route.len(), st.change_cooldown, self.cars[i].light_hold, self.cars[i].yielding, lane.left, lane.right, lane.left.map(|l| { let s_side = st.s / lane.length().max(1.0) * self.net.lanes[l].length(); (self.open_to(i, l), self.lane_clear(i, l, s_side, 12.0, 30.0, by_lane), self.can_merge(i, l, s_side, by_lane)) }));
         }
         let st = &self.cars[i].state;
         if st.change.is_some()
