@@ -274,8 +274,8 @@ impl Network {
                     // see `Lane::blocks`)
                     if let Some((sa, sb)) = place {
                         // (after a joint the two are in one lane, and follow each other)
-                        let (mut ab, mut aa) = if merge { (meeting_extent(a, sa, b).0, 0.5) } else { meeting_extent(a, sa, b) };
-                        let (mut bb, mut ba) = if merge { (meeting_extent(b, sb, a).0, 0.5) } else { meeting_extent(b, sb, a) };
+                        let (ab, aa) = if merge { (meeting_extent(a, sa, b).0, 0.5) } else { meeting_extent(a, sa, b) };
+                        let (bb, ba) = if merge { (meeting_extent(b, sb, a).0, 0.5) } else { meeting_extent(b, sb, a) };
                         // Keep the conflict envelope tied to the actual meeting geometry.
                         // Expanding a [crossingproblem] pair to the entire remaining lanes
                         // made every vehicle on a long approach hold crossing traffic until
@@ -320,10 +320,10 @@ impl Network {
     /// has to: who comes first goes first, by the claims the cars make (`junction_stop`).
     /// That is Omsi.exe's rule (FUN_00716970: TrafficPriority, then a path reserved or taken
     /// already, then `[rule] priority`, then the vehicle going straight before the one
-    /// turning left - no priority to the right). A right-before-left of our own made the
-    /// main road's cars stop for every car out of a side road on their right where a map
-    /// sets no priorities, the player's bus included (#2058, #1452). A train always goes
-    /// first.
+    /// turning left - no priority to the right). A train always goes first.
+    /// That is Omsi.exe's rule (FUN_00716970: TrafficPriority, then a path reserved or taken
+    /// already, then `[rule] priority`, then the vehicle going straight before the one
+    /// turning left - no priority to the right). A train always goes first.
     pub fn must_yield(&self, a: usize, b: usize) -> bool {
         let (la, lb) = (&self.lanes[a], &self.lanes[b]);
         if la.kind == LaneKind::Rail {
