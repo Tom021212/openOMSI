@@ -269,6 +269,37 @@ pub const EXIT_HYSTERESIS: f32 = 3.0;
 /// (m/s², see `queued_exit_vehicle`).
 pub const EXIT_BRAKE: f32 = 2.0;
 
+/// Whether traffic on an exit makes it unsafe to enter the junction.
+/// A crawling vehicle is handled by its predicted stopping position only while
+/// the approaching car can still stop; only a genuinely stopped vehicle remains
+/// an unconditional blocker for a car that has already committed.
+fn exit_queue_blocks(space: f32, speed: f32, need: f32, exit_distance: f32, entry: f32, late: bool) -> bool {
+    let standing = speed < 0.3 && space < need && exit_distance < 40.0;
+    let will_stand = space + speed.max(0.0).powi(2) / (2.0 * EXIT_BRAKE) < need
+        && exit_distance - entry < 60.0;
+    standing || (will_stand && !late)
+}
+
+#[cfg(test)]
+mod exit_queue_tests {
+    use super::*;
+
+    #[test]
+    fn crawling_exit_vehicle_does_not_hold_a_committed_car() {
+        assert!(!exit_queue_blocks(3.0, 1.0, 5.0, 20.0, 0.0, true));
+    }
+
+    #[test]
+    fn stopped_exit_vehicle_still_blocks_a_committed_car() {
+        assert!(exit_queue_blocks(3.0, 0.0, 5.0, 20.0, 0.0, true));
+    }
+
+    #[test]
+    fn crawling_exit_vehicle_blocks_when_approaching_car_can_still_stop() {
+        assert!(exit_queue_blocks(3.0, 1.0, 5.0, 20.0, 0.0, false));
+    }
+}
+
 /// The nearest vehicle in the part of the chosen exit that must be clear for this car:
 /// (the room left before its rear, its speed, its lane).
 ///
@@ -796,9 +827,7 @@ impl TrafficSim {
                 // the exit (e.g. 0.5–1.4 m/s) is handled by the stopping-distance prediction
                 // below when this driver can still stop; treating it as stationary here
                 // traps committed traffic behind a queue that is already moving.
-                let standing = speed < 0.3 && space < need_all && exit.1 < 40.0;
-                let will_stand = space + speed.powi(2) / (2.0 * EXIT_BRAKE) < need_all && exit.1 - entry < 60.0;
-                if standing || (will_stand && !late) {
+                if exit_queue_blocks(space, speed, need_all, exit.1, entry, late) {
                     // (the last car of that queue on that lane)
                     let last = on_lane
                         .get(&lane)
