@@ -640,6 +640,18 @@ impl TrafficSim {
         let long_waiter = (!jn.inside && !queued && wait > COURTESY_WAIT) || (self.cars[i].courtesy && committed);
         let w = self.weigh_crossings(i, jn, way, on_lane, coming, &book.lanes, walkers, committed, patience, long_waiter, explain, stop_at);
         let Weighing { hard, mut ruled, mut soft, mut why, stop_at, by, mut courtesy, mut holds, people, only_oncoming, oncoming_meet, let_in, nearest, sign_yield } = w;
+        // Diagnostic A/B switch. Set OMSI_DEBUG_JUNCTION to "rules" or "soft" to
+        // isolate right-of-way waits or mutual-wait cycles; "exit" isolates exit-space checks.
+        // The flag also enables the detailed junction log. Unset: normal traffic rules.
+        match omsi_cfg::flags::OMSI_DEBUG_JUNCTION.var() {
+            Some("rules") => {
+                ruled = false;
+                soft.clear();
+                courtesy = false;
+            }
+            Some("soft") => soft.clear(),
+            _ => {}
+        }
         // A left turn across the oncoming traffic at a signal pulls into the junction up to
         // where it meets that traffic and waits there, as drivers do, rather than at the
         // line: waiting at the line, one car got across a cycle (on the yellow) and the turn
@@ -684,6 +696,7 @@ impl TrafficSim {
         }
         let need = st.front + self.cars[i].tail + st.min_gap + if self.cars[i].exit_wait { EXIT_HYSTERESIS } else { 0.0 };
         let (exit_full, exit_car) = if jn.inside { (false, None) } else { self.exit_room(i, jn, way, lead, on_lane, book, need, committed, started || cannot_stop_comfortably, &mut why) };
+        let exit_full = exit_full && omsi_cfg::flags::OMSI_DEBUG_JUNCTION.var() != Some("exit");
         if let Some(id) = exit_car {
             holds.push((id, Hold::Exit));
         }
