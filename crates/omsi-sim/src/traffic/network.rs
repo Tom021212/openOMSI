@@ -321,9 +321,6 @@ impl Network {
     /// That is Omsi.exe's rule (FUN_00716970: TrafficPriority, then a path reserved or taken
     /// already, then `[rule] priority`, then the vehicle going straight before the one
     /// turning left - no priority to the right). A train always goes first.
-    /// That is Omsi.exe's rule (FUN_00716970: TrafficPriority, then a path reserved or taken
-    /// already, then `[rule] priority`, then the vehicle going straight before the one
-    /// turning left - no priority to the right). A train always goes first.
     pub fn must_yield(&self, a: usize, b: usize) -> bool {
         let (la, lb) = (&self.lanes[a], &self.lanes[b]);
         if la.kind == LaneKind::Rail {
