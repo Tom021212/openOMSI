@@ -646,7 +646,6 @@ impl TrafficSim {
         match omsi_cfg::flags::OMSI_DEBUG_JUNCTION.var() {
             Some("rules") => {
                 ruled = false;
-                soft.clear();
                 courtesy = false;
             }
             Some("soft") => soft.clear(),
