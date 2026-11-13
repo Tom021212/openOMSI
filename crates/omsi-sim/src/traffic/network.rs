@@ -2,6 +2,7 @@
 //! conflicts and who yields, reach, the start grid and the shortest path.
 
 use super::*;
+use crate::traffic::lane::heading_dir;
 
 impl Network {
     /// The sign of a lateral offset (positive to the right) towards the oncoming lane:
