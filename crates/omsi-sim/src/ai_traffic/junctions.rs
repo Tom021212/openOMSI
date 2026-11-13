@@ -879,7 +879,11 @@ impl TrafficSim {
                 // (a queue that stands near the junction, at any braking a driver calls
                 // gentle; one that is about to stand, only if the car can stop for it
                 // comfortably)
-                let standing = speed < 1.5 && space < need_all && exit.1 < 40.0;
+                // Only a genuinely stopped vehicle is an immediate obstruction.
+                // A slowly rolling vehicle is judged by where it can stop below: treating
+                // every crawl under 1.5 m/s as already standing made traffic wait for a
+                // vehicle that was still clearing the exit under its own momentum.
+                let standing = speed < STANDING && space < need_all && exit.1 < 40.0;
                 let will_stand = space + speed.powi(2) / (2.0 * EXIT_BRAKE) < need_all && exit.1 - entry < 60.0;
                 if standing || (will_stand && !late) {
                     // (the last car of that queue on that lane)
