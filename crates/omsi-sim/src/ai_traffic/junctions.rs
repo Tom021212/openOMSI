@@ -270,9 +270,8 @@ pub const EXIT_HYSTERESIS: f32 = 3.0;
 pub const EXIT_BRAKE: f32 = 2.0;
 
 /// Whether traffic on an exit makes it unsafe to enter the junction.
-/// A crawling vehicle is handled by its predicted stopping position only while
-/// the approaching car can still stop; only a genuinely stopped vehicle remains
-/// an unconditional blocker for a car that has already committed.
+/// A queue blocks only while the approaching car can still stop comfortably;
+/// once it has committed, the exit queue must not make it stop in the junction.
 fn exit_queue_blocks(space: f32, speed: f32, need: f32, exit_distance: f32, entry: f32, late: bool) -> bool {
     let standing = speed < 0.3 && space < need && exit_distance < 40.0 && !late;
     let will_stand = space + speed.max(0.0).powi(2) / (2.0 * EXIT_BRAKE) < need
