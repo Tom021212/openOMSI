@@ -56,6 +56,7 @@ impl Network {
                 }
             }
         }
+        self.link_geometric_neighbours(first);
         // links: ends of new lanes to any start, ends of old lanes to new starts
         let joins = |net: &Network, from: usize, to: usize| -> bool {
             let (a, b) = (&net.lanes[from], &net.lanes[to]);

@@ -197,13 +197,36 @@ pub struct Envelope {
     pub reaction: f32,
 }
 
+/// Why a vehicle was selected as a lead. Only a vehicle on this car's own planned lane
+/// chain may use the compact queue gap; a merge keeps the ordinary safety distance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LeadRelation {
+    /// A vehicle on the lane chain this car has chosen to follow (including its lane-change plan).
+    SamePath,
+    /// A vehicle on another approach that merges into this car's planned exit.
+    Merge,
+    /// A player, parked vehicle, body, or other obstacle not selected by path following.
+    #[default]
+    Other,
+}
+
 /// What a car keeps its distance to: the gap from its front bumper to the thing (m), how
-/// fast that is moving along the car's way (m/s) and how it is speeding up (m/s²).
+/// fast that is moving along the car's way (m/s), how it is speeding up (m/s²), and why it
+/// was selected as the lead.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Lead {
     pub gap: f32,
     pub speed: f32,
     pub acc: f32,
+    pub relation: LeadRelation,
+}
+
+impl Lead {
+    /// The following gap for this lead, without reducing the safety distance at merges or
+    /// for obstacles outside the car's own planned lane chain.
+    pub fn following_gap(self, normal: f32) -> f32 {
+        if self.relation == LeadRelation::SamePath { normal.min(1.0) } else { normal }
+    }
 }
 
 impl Lead {
@@ -269,7 +292,7 @@ pub const JERK: f32 = 8.0;
 /// this much of the excess a second (1/s): the free road's term alone fell to nothing as the
 /// speed neared the limit, and a car crept down to the new limit for a hundred metres.
 const LIMIT_GAIN: f32 = 2.0;
-/// Standing this close behind a standing car (m, beyond the gap it keeps to it), a car stays
+/// A car standing this close behind a standing car (m, beyond the gap it keeps to it), a car stays
 /// where it is: the model's pull towards the exact gap moved it on by a few centimetres at a
 /// time whenever the one ahead rolled on a little, the brake lights going on and off.
 const STANDSTILL_SLACK: f32 = 0.75;
@@ -867,7 +890,7 @@ impl AiState {
     /// a standing vehicle ahead (m), `stop_at` = distance from its origin to a stop line
     /// (m). False at a dead end (the car is taken off the road).
     pub fn advance(&mut self, net: &Network, dt: f32, obstacle: Option<f32>, stop_at: Option<f32>) -> bool {
-        let lead = obstacle.map(|d| Lead { gap: d - self.front, speed: 0.0, acc: 0.0 });
+        let lead = obstacle.map(|d| Lead { gap: d - self.front, speed: 0.0, acc: 0.0, relation: LeadRelation::Other });
         self.drive(net, dt, lead, stop_at)
     }
 
@@ -941,7 +964,10 @@ impl AiState {
         };
         let mut out = acc;
         if let Some(l) = lead {
-            let idm = acc + interaction(l.gap, l.speed.max(0.0), self.min_gap, self.headway);
+            // In a stationary queue, use a compact but non-zero bumper gap. Keep the
+            // driver's normal min_gap for moving traffic and for passing-clearance checks.
+            let standstill_gap = l.following_gap(self.min_gap);
+            let idm = acc + interaction(l.gap, l.speed.max(0.0), standstill_gap, self.headway);
             // The constant-acceleration heuristic (the "ACC" variant of the model): how hard
             // the driver has to brake if the car ahead keeps doing what it does. A car that
             // has just cut in close ahead but drives almost as fast calls for a firm brake
@@ -1011,7 +1037,9 @@ impl AiState {
             // (only behind a car: up to a line the model stops where it should, and the
             // junctions count on a car waiting right at its line - held short of it as
             // well, a car waiting to turn and one driving through met at a Spandau junction)
-            if lead.is_some_and(|l| l.speed < 0.3 && l.gap < self.min_gap + STANDSTILL_SLACK) {
+            if lead.is_some_and(|l| l.speed < 0.3 && l.gap < l.following_gap(self.min_gap) + STANDSTILL_SLACK)
+                || stop.is_some_and(|d| d - self.front <= STOP_LINE_GAP + 0.05)
+            {
                 target = target.min(0.0);
             }
             if target <= 0.0 {
@@ -1241,5 +1269,20 @@ mod power_tests {
         assert!((power_limited(1.5, Some(12.0), 20.0) - 0.6).abs() < 1e-5);
         assert_eq!(power_limited(1.0, Some(12.0), 0.2), 1.0);
         assert_eq!(power_limited(1.0, Some(12.0), 500.0), 0.08);
+    }
+}
+
+
+#[cfg(test)]
+mod lead_relation_tests {
+    use super::{Lead, LeadRelation};
+
+    #[test]
+    fn compact_following_gap_is_only_used_on_the_same_path() {
+        let normal = 2.4;
+        let lead = |relation| Lead { gap: 3.0, speed: 0.0, acc: 0.0, relation };
+        assert_eq!(lead(LeadRelation::SamePath).following_gap(normal), 1.0);
+        assert_eq!(lead(LeadRelation::Merge).following_gap(normal), normal);
+        assert_eq!(lead(LeadRelation::Other).following_gap(normal), normal);
     }
 }

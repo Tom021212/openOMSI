@@ -146,6 +146,7 @@ impl TrafficSim {
             None
         } else {
             self.obstacle_from(i, me.lane, me.s, Some(&plan), look, by_lane)
+                .map(|(d, v, j)| (d, v, j, LeadRelation::SamePath))
         };
         if let Some(c) = me.change {
             // along the way it has chosen from the new lane
@@ -153,7 +154,7 @@ impl TrafficSim {
                 self.obstacle_from(i, c.to, c.s_to, Some(&me.change_plan), look, by_lane)
             {
                 if best.map(|b| o.0 < b.0).unwrap_or(true) {
-                    best = Some(o);
+                    best = Some((o.0, o.1, o.2, LeadRelation::SamePath));
                 }
             }
         }
@@ -244,7 +245,7 @@ impl TrafficSim {
                                 ((before - my_clear).max(0.0), 0.0)
                             };
                             if best.map(|b| d < b.0).unwrap_or(true) {
-                                best = Some((d, v, j));
+                                best = Some((d, v, j, LeadRelation::Merge));
                             }
                         }
                     }
@@ -253,12 +254,13 @@ impl TrafficSim {
                 from = next;
             }
         }
-        best.map(|(d, v, j)| {
+        best.map(|(d, v, j, relation)| {
             (
                 Lead {
                     gap: d - me.front,
                     speed: v,
                     acc: if v > 0.1 { self.cars[j].state.acc } else { 0.0 },
+                    relation,
                 },
                 j,
             )
@@ -454,12 +456,19 @@ impl TrafficSim {
         match who {
             Some(j) if j < self.cars.len() => {
                 let o = &self.cars[j];
-                // a bus at its stop, or a car that has stood for long with nothing holding
-                // it (not the head of a queue that waits for a light, a junction or a car),
-                // or the end of a queue standing behind a bus at its stop
+                // Only the actual stationary obstacle gets the extra pull-out room.
+                // Do not propagate "standing" through a queue: each following car would
+                // otherwise reserve its own pass_room behind the preceding queued car,
+                // making the gaps grow along the queue.
                 o.standing_for(self.day_time) > 4.0
-                    || (o.stopped > 25.0 && !o.held && self.cars[i].stopped > 6.0)
-                    || (o.stopped > 3.0 && self.standing_queue(j).1)
+                    || (o.stopped > 25.0
+                        && !o.held
+                        && self.cars[i].stopped > 6.0
+                        // A car deep in a queue must not become a new "obstacle"
+                        // just because it has itself been waiting for 25 seconds.
+                        // Otherwise every follower reserves pass_room again and
+                        // the gaps grow farther back through the queue.
+                        && !self.standing_queue(j).1)
             }
             Some(_) => player_standing.min(self.cars[i].since_player_at_light) > 10.0,
             None => parked_ahead,
@@ -482,6 +491,12 @@ impl TrafficSim {
             let Some((id, gap)) = self.cars[k].lead_info else {
                 break;
             };
+            // The player is not in the AI car index, but can still head a
+            // stationary queue (for example, when the player parks a bus).
+            if id == u64::MAX {
+                long = true;
+                break;
+            }
             let Some(&n) = self.index_of.get(&id) else {
                 break;
             };

@@ -269,6 +269,41 @@ pub const EXIT_HYSTERESIS: f32 = 3.0;
 /// (m/s², see `queued_exit_vehicle`).
 pub const EXIT_BRAKE: f32 = 2.0;
 
+/// Whether traffic on an exit makes it unsafe to enter the junction.
+/// A queue blocks only while the approaching car can still stop comfortably;
+/// once it has committed, the exit queue must not make it stop in the junction.
+fn exit_queue_blocks(space: f32, speed: f32, need: f32, exit_distance: f32, entry: f32, late: bool) -> bool {
+    let standing = speed < 0.3 && space < need && exit_distance < 40.0 && !late;
+    let will_stand = space + speed.max(0.0).powi(2) / (2.0 * EXIT_BRAKE) < need
+        && exit_distance - entry < 60.0;
+    standing || (will_stand && !late)
+}
+
+#[cfg(test)]
+mod exit_queue_tests {
+    use super::*;
+
+    #[test]
+    fn crawling_exit_vehicle_does_not_hold_a_committed_car() {
+        assert!(!exit_queue_blocks(3.0, 1.0, 5.0, 20.0, 0.0, true));
+    }
+
+    #[test]
+    fn stopped_exit_vehicle_does_not_hold_a_committed_car() {
+        assert!(!exit_queue_blocks(3.0, 0.0, 5.0, 20.0, 0.0, true));
+    }
+
+    #[test]
+    fn stopped_exit_vehicle_blocks_a_car_that_can_still_stop() {
+        assert!(exit_queue_blocks(3.0, 0.0, 5.0, 20.0, 0.0, false));
+    }
+
+    #[test]
+    fn crawling_exit_vehicle_blocks_when_approaching_car_can_still_stop() {
+        assert!(exit_queue_blocks(3.0, 1.0, 5.0, 20.0, 0.0, false));
+    }
+}
+
 /// The nearest vehicle in the part of the chosen exit that must be clear for this car:
 /// (the room left before its rear, its speed, its lane).
 ///
@@ -286,14 +321,14 @@ pub fn queued_exit_vehicle(
     way: &[(usize, f32)],
     exit: (usize, f32),
     need: f32,
-    occupied: impl IntoIterator<Item = (usize, f32, f32)>,
-) -> Option<(f32, f32, usize)> {
+    occupied: impl IntoIterator<Item = (usize, f32, f32, usize)>,
+) -> Option<(f32, f32, usize, usize)> {
     let start = way
         .iter()
         .position(|&(lane, distance)| lane == exit.0 && (distance - exit.1).abs() < 0.01)?;
     occupied
         .into_iter()
-        .filter_map(|(lane, rear, speed)| {
+        .filter_map(|(lane, rear, speed, car)| {
             let offset = way[start..]
                 .iter()
                 .take_while(|&&(_, distance)| distance - exit.1 < need)
@@ -301,10 +336,10 @@ pub fn queued_exit_vehicle(
                 .map(|&(_, distance)| distance - exit.1)?;
             let space = offset + rear;
             let will = space + speed.max(0.0).powi(2) / (2.0 * EXIT_BRAKE);
-            (will < need).then_some((will, space, speed, lane))
+            (will < need).then_some((will, space, speed, lane, car))
         })
         .min_by(|a, b| a.0.total_cmp(&b.0))
-        .map(|(_, space, speed, lane)| (space, speed, lane))
+        .map(|(_, space, speed, lane, car)| (space, speed, lane, car))
 }
 
 /// A vehicle the AI does not drive, put onto the lanes for the right of way: the street
@@ -390,9 +425,9 @@ pub fn merging_lead(net: &Network, me: &AiState, users: &[WayUser]) -> Option<Le
                 // behind it at the joint; while it is not past, wait at the joint itself
                 let d = before - to_joint - u.half_len;
                 let l = if d >= 0.0 {
-                    Lead { gap: d - me.front, speed: u.speed, acc: 0.0 }
+                    Lead { gap: d - me.front, speed: u.speed, acc: 0.0, relation: LeadRelation::Merge }
                 } else {
-                    Lead { gap: (before - 1.0 - me.front).max(0.0), speed: 0.0, acc: 0.0 }
+                    Lead { gap: (before - 1.0 - me.front).max(0.0), speed: 0.0, acc: 0.0, relation: LeadRelation::Merge }
                 };
                 if best.map(|b| l.gap < b.gap).unwrap_or(true) {
                     best = Some(l);
@@ -609,6 +644,17 @@ impl TrafficSim {
         let long_waiter = (!jn.inside && !queued && wait > COURTESY_WAIT) || (self.cars[i].courtesy && committed);
         let w = self.weigh_crossings(i, jn, way, on_lane, coming, &book.lanes, walkers, committed, patience, long_waiter, explain, stop_at);
         let Weighing { hard, mut ruled, mut soft, mut why, stop_at, by, mut courtesy, mut holds, people, only_oncoming, oncoming_meet, let_in, nearest, sign_yield } = w;
+        // Diagnostic A/B switch. Set OMSI_DEBUG_JUNCTION to "rules" or "soft" to
+        // isolate right-of-way waits or mutual-wait cycles; "exit" isolates exit-space checks.
+        // The flag also enables the detailed junction log. Unset: normal traffic rules.
+        match omsi_cfg::flags::OMSI_DEBUG_JUNCTION.var() {
+            Some("rules") => {
+                ruled = false;
+                courtesy = false;
+            }
+            Some("soft") => soft.clear(),
+            _ => {}
+        }
         // A left turn across the oncoming traffic at a signal pulls into the junction up to
         // where it meets that traffic and waits there, as drivers do, rather than at the
         // line: waiting at the line, one car got across a cycle (on the yellow) and the turn
@@ -653,6 +699,7 @@ impl TrafficSim {
         }
         let need = st.front + self.cars[i].tail + st.min_gap + if self.cars[i].exit_wait { EXIT_HYSTERESIS } else { 0.0 };
         let (exit_full, exit_car) = if jn.inside { (false, None) } else { self.exit_room(i, jn, way, lead, on_lane, book, need, committed, started || cannot_stop_comfortably, &mut why) };
+        let exit_full = exit_full && omsi_cfg::flags::OMSI_DEBUG_JUNCTION.var() != Some("exit");
         if let Some(id) = exit_car {
             holds.push((id, Hold::Exit));
         }
@@ -780,10 +827,10 @@ impl TrafficSim {
             let occupied = on_lane.iter().flat_map(|(&lane, cars)| {
                 cars.iter().filter_map(move |&(j, s, _, passing)| {
                     // (one standing aside for this emergency vehicle is no queue to it)
-                    (!passing && j != i && !self.aside_for(j, i)).then_some((lane, s - all_cars[j].tail, all_cars[j].state.speed))
+                    (!passing && j != i && !self.aside_for(j, i)).then_some((lane, s - all_cars[j].tail, all_cars[j].state.speed, j))
                 })
             });
-            if let Some((space, speed, lane)) = queued_exit_vehicle(way, exit, need_all, occupied) {
+            if let Some((space, speed, lane, blocker)) = queued_exit_vehicle(way, exit, need_all, occupied) {
                 // (a car within its distance to decide looks across the junction however
                 // long it is: with the exit taken only within 40 m of the car, a big
                 // junction's exit came into view when the car could no longer stop for it,
@@ -791,16 +838,35 @@ impl TrafficSim {
                 // (a queue that stands near the junction, at any braking a driver calls
                 // gentle; one that is about to stand, only if the car can stop for it
                 // comfortably)
-                let standing = speed < 1.5 && space < need_all && exit.1 < 40.0;
-                let will_stand = space + speed.powi(2) / (2.0 * EXIT_BRAKE) < need_all && exit.1 - entry < 60.0;
-                if standing || (will_stand && !late) {
+                // Only a genuinely stopped vehicle blocks a driver who has already
+                // committed and can no longer stop comfortably. A vehicle crawling through
+                // the exit (e.g. 0.5–1.4 m/s) is handled by the stopping-distance prediction
+                // below when this driver can still stop; treating it as stationary here
+                // traps committed traffic behind a queue that is already moving.
+                if exit_queue_blocks(space, speed, need_all, exit.1, entry, late) {
                     // (the last car of that queue on that lane)
                     let last = on_lane
                         .get(&lane)
                         .and_then(|v| v.iter().filter(|e| !e.3 && e.0 != i).min_by(|a, b| (a.1 - self.cars[a.0].tail).total_cmp(&(b.1 - self.cars[b.0].tail))))
                         .map(|e| self.cars[e.0].id);
                     if explain {
-                        why.push(format!("exit {} full on lane {lane} ({space:.1} m, {promised:.1} m promised)", exit.0));
+                        let blocked_by = &self.cars[blocker];
+                        // Follow the queue ahead so the log identifies the first vehicle
+                        // in the chain, not only the last one before this junction.
+                        let mut chain = Vec::new();
+                        let mut next = Some(blocked_by.id);
+                        for _ in 0..8 {
+                            let Some(id) = next else { break };
+                            let Some(car) = self.car_by_id(id) else { break };
+                            chain.push(format!(
+                                "{}(lane {} s {:.1} v {:.1} stopped {:.1}s crawl {:.1}s yielding {} wait_at {:?} junction {:?})",
+                                car.id, car.state.lane, car.state.s, car.state.speed,
+                                car.stopped, car.crawl, car.yielding, car.wait_at, car.junction_why
+                            ));
+                            next = car.lead_info.map(|(lead, _)| lead);
+                            if next == Some(id) { break; }
+                        }
+                        why.push(format!("exit {} full on lane {lane}: car {} at {:.1} m/s, {space:.1} m free, needs {need_all:.1} m ({promised:.1} m promised); blocker lane {} s {:.1}, stopped {:.1}s crawl {:.1}s yielding {} lead {:?} wait_at {:?} junction {:?}; lead chain [{}]", exit.0, blocked_by.id, speed, blocked_by.state.lane, blocked_by.state.s, blocked_by.stopped, blocked_by.crawl, blocked_by.yielding, blocked_by.lead_info, blocked_by.wait_at, blocked_by.junction_why, chain.join(" -> ")));
                     }
                     return (true, last);
                 }

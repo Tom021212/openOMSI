@@ -2,6 +2,7 @@
 //! conflicts and who yields, reach, the start grid and the shortest path.
 
 use super::*;
+use crate::traffic::lane::heading_dir;
 
 impl Network {
     /// The sign of a lateral offset (positive to the right) towards the oncoming lane:
@@ -439,6 +440,82 @@ impl Network {
         out
     }
 
+    /// Which side of `a` does a geometrically parallel lane `b) lie on?
+    /// Samples the overlap rather than comparing only the starts: lanes from separate
+    /// splines often begin at different places (bus bays, junction approaches).
+    fn beside_side(&self, a: usize, b: usize) -> Option<bool> {
+        let (la, lb) = (self.lanes.get(a)?, self.lanes.get(b)?);
+        if a == b || la.kind != LaneKind::Street || lb.kind != LaneKind::Street {
+            return None;
+        }
+        let samples = 16;
+        let step = la.length() / samples as f32;
+        let (mut right, mut left) = (0usize, 0usize);
+        for i in 0..=samples {
+            let (p, h) = la.at(la.length() * i as f32 / samples as f32);
+            let (s, distance) = lb.nearest_point(p)?;
+            if s <= 0.5 || s >= lb.length() - 0.5 || distance <= 0.8 || distance >= 5.5 {
+                continue;
+            }
+            let (q, other_heading) = lb.at(s);
+            if (q.z - p.z).abs() >= 1.0 || wrap_deg(other_heading - h).abs() >= 30.0 {
+                continue;
+            }
+            let forward = heading_dir(h as f64);
+            let side = (q - p).truncate().dot(DVec2::new(forward.y, -forward.x));
+            if side > 0.8 && side < 5.5 {
+                right += 1;
+            } else if side < -0.8 && side > -5.5 {
+                left += 1;
+            }
+        }
+        if right as f32 * step >= 8.0 {
+            Some(true)
+        } else if left as f32 * step >= 8.0 {
+            Some(false)
+        } else {
+            None
+        }
+    }
+
+    /// Add lane-change neighbours for lanes in `first..`, including lanes already
+    /// loaded from other splines. Existing neighbours are never replaced.
+    pub(super) fn link_geometric_neighbours(&mut self, first: usize) -> usize {
+        let mut linked = 0;
+        for i in first..self.lanes.len() {
+            let mut candidates = Vec::new();
+            for cell in Self::lane_cells(&self.lanes[i]) {
+                if let Some(indices) = self.grid.get(&cell) {
+                    for &j in indices {
+                        if j != i && (j < first || j < i) && !candidates.contains(&j) {
+                            candidates.push(j);
+                        }
+                    }
+                }
+            }
+            candidates.sort_unstable();
+            for j in candidates {
+                if self.lanes[j].kind != LaneKind::Street {
+                    continue;
+                }
+                let (Some(i_right), Some(j_right)) = (self.beside_side(i, j), self.beside_side(j, i)) else {
+                    continue;
+                };
+                // Both views must agree: if b is to a's right, a must be to b's left.
+                if i_right == j_right {
+                    continue;
+                }
+                let (left, right) = if i_right { (i, j) } else { (j, i) };
+                if self.lanes[left].right.is_none() && self.lanes[right].left.is_none() {
+                    self.lanes[left].right = Some(right);
+                    self.lanes[right].left = Some(left);
+                    linked += 1;
+                }
+            }
+        }
+        linked
+    }
+
     /// Connect lane ends to lane starts that lie within `tol` metres with a compatible heading.
     pub fn link(&mut self, tol: f64) {
         self.by_key.clear();
@@ -482,6 +559,8 @@ impl Network {
             }
         }
         log::info!("lanes: {} neighbouring lane pairs (lane changes)", neighbours);
+        let geometric = self.link_geometric_neighbours(0);
+        log::info!("lanes: {} additional geometric neighbours (lane changes)", geometric);
         let cell = 4.0;
         let mut grid: HashMap<(i64, i64), Vec<usize>> = HashMap::new();
         for (i, l) in self.lanes.iter().enumerate() {
@@ -733,5 +812,27 @@ impl Network {
             }
         }
         None
+    }
+}
+
+
+#[cfg(test)]
+mod geometric_neighbour_tests {
+    use super::*;
+
+    #[test]
+    fn links_parallel_street_lanes_from_different_splines() {
+        let north = LaneBuilder::arc(DVec3::new(0.0, 0.0, 0.0), 0.0, 40.0, 0.0, 0.0, LaneKind::Street, 3.0);
+        let beside = LaneBuilder::arc(DVec3::new(3.5, 0.0, 0.0), 0.0, 40.0, 0.0, 0.0, LaneKind::Street, 3.0);
+        let opposite = LaneBuilder::arc(DVec3::new(-3.5, 40.0, 0.0), 180.0, 40.0, 0.0, 0.0, LaneKind::Street, 3.0);
+        let mut net = Network { lanes: vec![north, beside, opposite], ..Default::default() };
+
+        net.link(1.5);
+
+        assert_eq!(net.lanes[0].right, Some(1));
+        assert_eq!(net.lanes[1].left, Some(0));
+        assert_eq!(net.lanes[0].left, None);
+        assert_eq!(net.lanes[2].left, None);
+        assert_eq!(net.lanes[2].right, None);
     }
 }

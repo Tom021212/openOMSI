@@ -344,6 +344,7 @@ impl TrafficSim {
                             gap: (d - st.front).max(0.0),
                             speed: along,
                             acc,
+                            relation: LeadRelation::Other,
                         },
                         f.car,
                     ));
@@ -566,6 +567,7 @@ impl TrafficSim {
                     gap: (hi - st.front).max(0.0),
                     speed: along,
                     acc: 0.0,
+                    relation: LeadRelation::Other,
                 });
             }
             // (coarser far off: the entry is found by halving anyway)

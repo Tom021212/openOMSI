@@ -286,6 +286,55 @@ fn plain(f: &Fixture, mut net: Network) -> TrafficSim {
 /// Lane of the crossroads (`crossroads`): 0..4 in, 4..8 the junction's paths (24 m), 8..12
 /// out (`exit` m).
 #[test]
+fn same_path_following_and_merge_leads_are_classified_separately() {
+    let f = Fixture::new();
+
+    let mut same_path = plain(&f, shared_exit());
+    let ahead = car(&mut same_path, &f, 2, 5.0, 0x71, 0.0);
+    let follower = car(&mut same_path, &f, 0, 80.0, 0x72, 0.0);
+    let by_lane = same_path.occupancy().0;
+    let i = same_path.cars.iter().position(|c| c.id == follower).unwrap();
+    let (lead, who) = same_path.obstacle_ahead(i, 200.0, &by_lane).expect("same-path car is ahead");
+    assert_eq!(who, same_path.cars.iter().position(|c| c.id == ahead).unwrap());
+    assert_eq!(lead.relation, LeadRelation::SamePath);
+
+    // A plain road merge (not two paths of one junction object): both approaches
+    // end at lane 2, so obstacle_ahead must classify the other approach as Merge.
+    let mut net = Network {
+        lanes: vec![
+            street(DVec3::new(-100.0, 0.0, 0.0), 90.0, 100.0),
+            // A shallow second approach that converges on the same endpoint.
+            street(DVec3::new(-100.0, -10.0, 0.0), 84.289406, 100.498756),
+            street(DVec3::ZERO, 90.0, 100.0),
+        ],
+        ..Default::default()
+    };
+    net.link(1.5);
+    let mut merging = plain(&f, net);
+    assert!(merging.net.prev[2].contains(&0));
+    assert!(merging.net.prev[2].contains(&1));
+    let follower = car(&mut merging, &f, 0, 85.0, 0x73, 0.0);
+    let other = car(&mut merging, &f, 1, 95.0, 0x74, 0.0);
+    assert_eq!(get(&merging, other).state.planned_next, Some(2));
+    let by_lane = merging.occupancy().0;
+    let i = merging.cars.iter().position(|c| c.id == follower).unwrap();
+    let (lead, who) = merging.obstacle_ahead(i, 200.0, &by_lane).expect("merge approach is ahead");
+    assert_eq!(who, merging.cars.iter().position(|c| c.id == other).unwrap());
+    assert_eq!(lead.relation, LeadRelation::Merge);
+}
+
+#[test]
+fn crossing_path_is_not_treated_as_a_merge_lead() {
+    let f = Fixture::new();
+    let mut t = plain(&f, crossroads(150.0));
+    let me = car(&mut t, &f, 0, 100.0, 0x75, 0.0);
+    let _crossing = car(&mut t, &f, 5, 12.0, 0x76, 0.0);
+    let by_lane = t.occupancy().0;
+    let i = t.cars.iter().position(|c| c.id == me).unwrap();
+    assert!(t.obstacle_ahead(i, 200.0, &by_lane).is_none());
+}
+
+#[test]
 fn nobody_follows_a_standing_queue_into_a_junction() {
     // the car ahead stands in the junction's path just past the middle, 20 m in: a car
     // following it would stand with its rear across the east-west paths
