@@ -648,7 +648,7 @@ fn a_follower_keeps_its_distance_when_the_leader_brakes() {
         lead_s += lead_v * dt;
         let gap = lead_s - 2.5 - (car.s + car.front);
         closest = closest.min(gap);
-        car.drive(&net, dt, Some(Lead { gap, speed: lead_v, acc: if k > 60 && lead_v > 0.0 { -6.0 } else { 0.0 } }), None);
+        car.drive(&net, dt, Some(Lead { gap, speed: lead_v, acc: if k > 60 && lead_v > 0.0 { -6.0 } else { 0.0 }, relation: LeadRelation::Other }), None);
     }
     assert!(closest > 0.8, "came within {closest} m");
     assert!(car.speed < 0.05);
@@ -901,7 +901,7 @@ fn a_leader_braking_comfortably_needs_no_emergency() {
             lead_s += lead_v * dt;
             let gap = lead_s - 2.5 - (car.s + car.front);
             closest = closest.min(gap);
-            car.drive(&net, dt, Some(Lead { gap, speed: lead_v, acc: if braking { -2.5 } else { 0.0 } }), None);
+            car.drive(&net, dt, Some(Lead { gap, speed: lead_v, acc: if braking { -2.5 } else { 0.0 }, relation: LeadRelation::Other }), None);
             hardest = hardest.min(car.acc);
             emergencies += car.emergency_began as u32;
         }
@@ -927,7 +927,7 @@ fn an_emergency_stop_is_its_own_channel_and_stays_clear() {
     for _ in 0..600 {
         let gap = wall - (car.s + car.front);
         closest = closest.min(gap);
-        car.drive(&net, 0.02, Some(Lead { gap, speed: 0.0, acc: 0.0 }), None);
+        car.drive(&net, 0.02, Some(Lead { gap, speed: 0.0, acc: 0.0, relation: LeadRelation::Other }), None);
         hardest = hardest.min(car.acc);
         began += car.emergency_began as u32;
     }
@@ -957,7 +957,7 @@ fn a_stop_is_reached_without_creeping_or_flicker() {
                 line += 0.4;
             }
             // a line, or the back of a car standing there
-            let (lead, stop) = if behind { (Some(Lead { gap: line - car.s - car.front, speed: 0.0, acc: 0.0 }), None) } else { (None, Some(line - car.s)) };
+            let (lead, stop) = if behind { (Some(Lead { gap: line - car.s - car.front, speed: 0.0, acc: 0.0, relation: LeadRelation::Other }), None) } else { (None, Some(line - car.s)) };
             car.drive(&net, 0.02, lead, stop);
             match stood {
                 None if car.speed < 0.01 => stood = Some(car.s),
