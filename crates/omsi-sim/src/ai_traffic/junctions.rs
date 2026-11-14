@@ -846,7 +846,7 @@ impl TrafficSim {
                         .and_then(|v| v.iter().filter(|e| !e.3 && e.0 != i).min_by(|a, b| (a.1 - self.cars[a.0].tail).total_cmp(&(b.1 - self.cars[b.0].tail))))
                         .map(|e| self.cars[e.0].id);
                     if explain {
-                        why.push(format!("exit {} full on lane {lane}: car {} at {:.1} m/s, {space:.1} m free, needs {need_all:.1} m ({promised:.1} m promised)", exit.0, self.cars[blocker].id, speed, need_all));
+                        why.push(format!("exit {} full on lane {lane}: car {} at {:.1} m/s, {space:.1} m free, needs {need_all:.1} m ({promised:.1} m promised)", exit.0, self.cars[blocker].id, speed));
                     }
                     return (true, last);
                 }
