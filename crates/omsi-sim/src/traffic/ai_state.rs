@@ -269,10 +269,11 @@ pub const JERK: f32 = 8.0;
 /// this much of the excess a second (1/s): the free road's term alone fell to nothing as the
 /// speed neared the limit, and a car crept down to the new limit for a hundred metres.
 const LIMIT_GAIN: f32 = 2.0;
-/// Standing this close behind a standing car (m, beyond the gap it keeps to it), a car stays
-/// where it is: the model's pull towards the exact gap moved it on by a few centimetres at a
-/// time whenever the one ahead rolled on a little, the brake lights going on and off.
-const STANDSTILL_SLACK: f32 = 0.75;
+/// Bumper gap kept behind a stationary vehicle. Moving traffic still uses each driver's
+/// ordinary `min_gap`.
+const STANDSTILL_GAP: f32 = 1.0;
+/// A small tolerance beyond the stationary gap prevents repeated creeping and brake lights.
+const STANDSTILL_SLACK: f32 = 0.35;
 /// Out of an emergency once the braking needed is this much (m/s²) under the ordinary
 /// maximum again: right at the boundary the channel went on and off every step.
 const EMERGENCY_HYSTERESIS: f32 = 0.5;
@@ -943,7 +944,7 @@ impl AiState {
         if let Some(l) = lead {
             // In a stationary queue, use a compact but non-zero bumper gap. Keep the
             // driver's normal min_gap for moving traffic and for passing-clearance checks.
-            let standstill_gap = if l.speed.abs() < 0.3 { 1.2 } else { self.min_gap };
+            let standstill_gap = if l.speed.abs() < 0.3 { STANDSTILL_GAP } else { self.min_gap };
             let idm = acc + interaction(l.gap, l.speed.max(0.0), standstill_gap, self.headway);
             // The constant-acceleration heuristic (the "ACC" variant of the model): how hard
             // the driver has to brake if the car ahead keeps doing what it does. A car that
@@ -984,7 +985,7 @@ impl AiState {
             emergency_brake: self.emergency_brake,
             jerk: self.jerk,
             headway: self.headway,
-            standstill_gap: self.min_gap,
+            standstill_gap: STANDSTILL_GAP,
             reaction: self.reaction,
         }
     }
@@ -1014,7 +1015,7 @@ impl AiState {
             // (only behind a car: up to a line the model stops where it should, and the
             // junctions count on a car waiting right at its line - held short of it as
             // well, a car waiting to turn and one driving through met at a Spandau junction)
-            if lead.is_some_and(|l| l.speed < 0.3 && l.gap < 1.2 + STANDSTILL_SLACK) {
+            if lead.is_some_and(|l| l.speed < 0.3 && l.gap < STANDSTILL_GAP + STANDSTILL_SLACK) {
                 target = target.min(0.0);
             }
             if target <= 0.0 {
