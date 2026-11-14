@@ -1014,7 +1014,9 @@ impl AiState {
             // (only behind a car: up to a line the model stops where it should, and the
             // junctions count on a car waiting right at its line - held short of it as
             // well, a car waiting to turn and one driving through met at a Spandau junction)
-            if lead.is_some_and(|l| l.speed < 0.3 && l.gap < 1.2 + STANDSTILL_SLACK) {
+            if lead.is_some_and(|l| l.speed < 0.3 && l.gap < 1.2 + STANDSTILL_SLACK)
+                || stop.is_some_and(|d| d - self.front <= STOP_LINE_GAP + 0.05)
+            {
                 target = target.min(0.0);
             }
             if target <= 0.0 {
