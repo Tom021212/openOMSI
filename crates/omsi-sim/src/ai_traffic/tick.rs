@@ -703,6 +703,7 @@ impl TrafficSim {
                     gap: (gap - 2.0).max(0.0),
                     speed: 0.0,
                     acc: 0.0,
+                    relation: LeadRelation::Other,
                 };
                 if lead.map(|x| l.gap < x.0.gap).unwrap_or(true) {
                     lead = Some((l, None));
