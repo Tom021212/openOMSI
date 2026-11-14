@@ -941,7 +941,10 @@ impl AiState {
         };
         let mut out = acc;
         if let Some(l) = lead {
-            let idm = acc + interaction(l.gap, l.speed.max(0.0), self.min_gap, self.headway);
+            // In a stationary queue, use a compact but non-zero bumper gap. Keep the
+            // driver's normal min_gap for moving traffic and for passing-clearance checks.
+            let standstill_gap = if l.speed.abs() < 0.3 { 1.2 } else { self.min_gap };
+            let idm = acc + interaction(l.gap, l.speed.max(0.0), standstill_gap, self.headway);
             // The constant-acceleration heuristic (the "ACC" variant of the model): how hard
             // the driver has to brake if the car ahead keeps doing what it does. A car that
             // has just cut in close ahead but drives almost as fast calls for a firm brake
@@ -1011,7 +1014,7 @@ impl AiState {
             // (only behind a car: up to a line the model stops where it should, and the
             // junctions count on a car waiting right at its line - held short of it as
             // well, a car waiting to turn and one driving through met at a Spandau junction)
-            if lead.is_some_and(|l| l.speed < 0.3 && l.gap < self.min_gap + STANDSTILL_SLACK) {
+            if lead.is_some_and(|l| l.speed < 0.3 && l.gap < 1.2 + STANDSTILL_SLACK) {
                 target = target.min(0.0);
             }
             if target <= 0.0 {
