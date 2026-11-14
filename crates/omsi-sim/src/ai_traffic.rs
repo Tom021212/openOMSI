@@ -62,7 +62,7 @@ use crate::ai_motion::{
 };
 use crate::collision::Obb;
 use crate::traffic::{
-    arrival_time, AiState, Aspect, LaneKind, Lead, Network, TrafficLightController, MAX_BRAKE,
+    arrival_time, AiState, Aspect, LaneKind, Lead, LeadRelation, Network, TrafficLightController, MAX_BRAKE,
 };
 use crate::vehicle::AiFrame;
 use crate::{VehicleInstance, VehicleType};
