@@ -969,7 +969,7 @@ fn a_stop_is_reached_without_creeping_or_flicker() {
             }
         }
         let at = stood.expect("it stopped");
-        eprintln!("DEBUG seed={seed} v={v} behind={behind} stood_s={at:.3} end_s={:.3} front={:.3} line={line:.3} stop_gap={:.3} speed={:.3} cmd={:.3}", car.s, car.s + car.front, line, line - car.s - car.front, car.speed, car.cmd);
+        eprintln!("DEBUG seed={seed} v={v} behind={behind} stood_s={at:.3} end_s={:.3} front={:.3} line={line:.3} stop_gap={:.3} speed={:.3} cmd={:.3}", car.s, car.s + car.front, line - car.s - car.front, car.speed, car.cmd);
         assert!((car.s - at).abs() < 0.01, "seed {seed}: crept {:.3} m on after stopping", car.s - at);
         assert_eq!(flips, 0, "seed {seed}: the brake lights went on and off");
         let front = car.s + car.front;
