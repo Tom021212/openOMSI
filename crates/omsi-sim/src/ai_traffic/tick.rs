@@ -745,9 +745,13 @@ impl TrafficSim {
             }
             _ => (4.8, false),
         };
-        self.cars[i].lead_info = lead.and_then(|(l, who)| {
-            who.filter(|&j| j < self.cars.len())
-                .map(|j| (self.cars[j].id, l.gap))
+        self.cars[i].lead_info = lead.and_then(|(l, who)| match who {
+            Some(j) if j < self.cars.len() => Some((self.cars[j].id, l.gap)),
+            // Keep the player as the head of this queue too. Without this marker,
+            // standing_queue cannot see that the first AI car is waiting behind
+            // the player's bus, so the 25-second fallback can propagate pass_room.
+            Some(usize::MAX) if player_standing > 10.0 => Some((usize::MAX, l.gap)),
+            _ => None,
         });
         // Something that may stand for a while (a bus at its stop, the player's bus that
         // has stopped) is waited behind with room to pull out round it later: a car that
