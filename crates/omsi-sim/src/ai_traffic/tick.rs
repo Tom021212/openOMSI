@@ -202,7 +202,7 @@ impl TrafficSim {
     /// Where every car is: its lane with its lateral place (and the lane a passing car is
     /// over on, where it counts for the oncoming traffic), the cars coming to each junction
     /// lane, the junction lanes each has claimed and the room promised on the exits.
-    fn occupancy(&self) -> (ByLane, Coming, ClaimBook) {
+    pub(super) fn occupancy(&self) -> (ByLane, Coming, ClaimBook) {
         let mut by_lane: HashMap<usize, Vec<(usize, f32, f32, bool)>> = HashMap::new();
         // cars coming to a junction lane: (car, distance from its origin to the lane start)
         let mut coming: HashMap<usize, Vec<(usize, f32)>> = HashMap::new();
