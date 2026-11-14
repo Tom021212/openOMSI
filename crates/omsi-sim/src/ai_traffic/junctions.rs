@@ -847,7 +847,22 @@ impl TrafficSim {
                         .map(|e| self.cars[e.0].id);
                     if explain {
                         let blocked_by = &self.cars[blocker];
-                        why.push(format!("exit {} full on lane {lane}: car {} at {:.1} m/s, {space:.1} m free, needs {need_all:.1} m ({promised:.1} m promised); blocker lane {} s {:.1}, stopped {:.1}s crawl {:.1}s yielding {} lead {:?} wait_at {:?} junction {:?}", exit.0, blocked_by.id, speed, blocked_by.state.lane, blocked_by.state.s, blocked_by.stopped, blocked_by.crawl, blocked_by.yielding, blocked_by.lead_info, blocked_by.wait_at, blocked_by.junction_why));
+                        // Follow the queue ahead so the log identifies the first vehicle
+                        // in the chain, not only the last one before this junction.
+                        let mut chain = Vec::new();
+                        let mut next = Some(blocked_by.id);
+                        for _ in 0..8 {
+                            let Some(id) = next else { break };
+                            let Some(car) = self.car_by_id(id) else { break };
+                            chain.push(format!(
+                                "{}(lane {} s {:.1} v {:.1} stopped {:.1}s crawl {:.1}s yielding {} wait_at {:?} junction {:?})",
+                                car.id, car.state.lane, car.state.s, car.state.speed,
+                                car.stopped, car.crawl, car.yielding, car.wait_at, car.junction_why
+                            ));
+                            next = car.lead_info.map(|(lead, _)| lead);
+                            if next == Some(id) { break; }
+                        }
+                        why.push(format!("exit {} full on lane {lane}: car {} at {:.1} m/s, {space:.1} m free, needs {need_all:.1} m ({promised:.1} m promised); blocker lane {} s {:.1}, stopped {:.1}s crawl {:.1}s yielding {} lead {:?} wait_at {:?} junction {:?}; lead chain [{}]", exit.0, blocked_by.id, speed, blocked_by.state.lane, blocked_by.state.s, blocked_by.stopped, blocked_by.crawl, blocked_by.yielding, blocked_by.lead_info, blocked_by.wait_at, blocked_by.junction_why, chain.join(" -> ")));
                     }
                     return (true, last);
                 }
