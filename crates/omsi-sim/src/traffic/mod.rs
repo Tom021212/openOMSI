@@ -158,7 +158,18 @@ fn near_pass(a: &Lane, b: &Lane) -> Option<(f32, f32)> {
             best = Some((d, sa, sb));
         }
     }
-    best.filter(|x| x.0 < NEAR_PASS).map(|x| (x.1, x.2))
+    let (distance, sa, sb) = best.filter(|x| x.0 < NEAR_PASS)?;
+    // Close, parallel paths are adjacent lanes, not a crossing conflict. Treating
+    // them as a meeting place makes cars on a roundabout (or parallel approaches)
+    // reserve each other for the whole overlap and can stop both streams. Keep genuine
+    // crossing/turning paths, including shallow-angle crossings.
+    let (_, ha) = a.at(sa);
+    let (_, hb) = b.at(sb);
+    let angle = wrap_deg(hb - ha).abs();
+    if angle < 15.0 || angle > 165.0 {
+        return None;
+    }
+    Some((sa, sb))
 }
 
 /// Centre lines of two lanes closer than this pass too close for two cars (m).
@@ -212,5 +223,40 @@ mod aurora_pool_tests {
         assert_eq!(lane.pool_density(&defaults, 5), 0.0);
         lane.group_density.push((1, 0.5));
         assert_eq!(lane.pool_density(&defaults, 1), 0.5);
+    }
+}
+
+#[cfg(test)]
+mod near_pass_tests {
+    use super::*;
+
+    #[test]
+    fn parallel_paths_close_together_are_not_junction_conflicts() {
+        let a = LaneBuilder::polyline(
+            vec![DVec3::new(0.0, 0.0, 0.0), DVec3::new(50.0, 0.0, 0.0), DVec3::new(100.0, 0.0, 0.0)],
+            LaneKind::Street,
+            3.0,
+        );
+        let b = LaneBuilder::polyline(
+            vec![DVec3::new(0.0, 5.0, 0.0), DVec3::new(50.0, 1.5, 0.0), DVec3::new(100.0, 5.0, 0.0)],
+            LaneKind::Street,
+            3.0,
+        );
+        assert!(near_pass(&a, &b).is_none());
+    }
+
+    #[test]
+    fn genuinely_crossing_paths_remain_conflicts() {
+        let a = LaneBuilder::polyline(
+            vec![DVec3::new(0.0, 0.0, 0.0), DVec3::new(100.0, 0.0, 0.0)],
+            LaneKind::Street,
+            3.0,
+        );
+        let b = LaneBuilder::polyline(
+            vec![DVec3::new(50.0, -50.0, 0.0), DVec3::new(50.0, 50.0, 0.0)],
+            LaneKind::Street,
+            3.0,
+        );
+        assert!(near_pass(&a, &b).is_some());
     }
 }
