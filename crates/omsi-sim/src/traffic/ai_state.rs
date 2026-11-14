@@ -943,7 +943,7 @@ impl AiState {
         if let Some(l) = lead {
             // In a stationary queue, use a compact but non-zero bumper gap. Keep the
             // driver's normal min_gap for moving traffic and for passing-clearance checks.
-            let standstill_gap = if l.speed.abs() < 0.3 { 1.2 } else { self.min_gap };
+            let standstill_gap = self.min_gap;
             let idm = acc + interaction(l.gap, l.speed.max(0.0), standstill_gap, self.headway);
             // The constant-acceleration heuristic (the "ACC" variant of the model): how hard
             // the driver has to brake if the car ahead keeps doing what it does. A car that
