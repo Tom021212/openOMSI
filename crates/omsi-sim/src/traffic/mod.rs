@@ -158,7 +158,7 @@ fn near_pass(a: &Lane, b: &Lane) -> Option<(f32, f32)> {
             best = Some((d, sa, sb));
         }
     }
-    let (distance, sa, sb) = best.filter(|x| x.0 < NEAR_PASS)?;
+    let (_, sa, sb) = best.filter(|x| x.0 < NEAR_PASS)?;
     // Close, parallel paths are adjacent lanes, not a crossing conflict. Treating
     // them as a meeting place makes cars on a roundabout (or parallel approaches)
     // reserve each other for the whole overlap and can stop both streams. Keep genuine
