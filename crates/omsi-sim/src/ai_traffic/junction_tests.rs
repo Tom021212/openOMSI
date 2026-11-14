@@ -298,10 +298,23 @@ fn same_path_following_and_merge_leads_are_classified_separately() {
     assert_eq!(who, same_path.cars.iter().position(|c| c.id == ahead).unwrap());
     assert_eq!(lead.relation, LeadRelation::SamePath);
 
-    let mut merging = plain(&f, shared_exit());
-    let follower = car(&mut merging, &f, 2, 5.0, 0x73, 0.0);
-    let other = car(&mut merging, &f, 3, 12.0, 0x74, 0.0);
-    assert_eq!(get(&merging, other).state.planned_next, Some(4));
+    // A plain road merge (not two paths of one junction object): both approaches
+    // end at lane 2, so obstacle_ahead must classify the other approach as Merge.
+    let mut net = Network {
+        lanes: vec![
+            street(DVec3::new(-100.0, 0.0, 0.0), 90.0, 100.0),
+            street(DVec3::new(0.0, -100.0, 0.0), 0.0, 100.0),
+            street(DVec3::ZERO, 90.0, 100.0),
+        ],
+        ..Default::default()
+    };
+    net.link(1.5);
+    let mut merging = plain(&f, net);
+    assert!(merging.net.prev[2].contains(&0));
+    assert!(merging.net.prev[2].contains(&1));
+    let follower = car(&mut merging, &f, 0, 85.0, 0x73, 0.0);
+    let other = car(&mut merging, &f, 1, 95.0, 0x74, 0.0);
+    assert_eq!(get(&merging, other).state.planned_next, Some(2));
     let by_lane = merging.occupancy().0;
     let i = merging.cars.iter().position(|c| c.id == follower).unwrap();
     let (lead, who) = merging.obstacle_ahead(i, 200.0, &by_lane).expect("merge approach is ahead");
