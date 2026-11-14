@@ -421,9 +421,9 @@ pub fn merging_lead(net: &Network, me: &AiState, users: &[WayUser]) -> Option<Le
                 // behind it at the joint; while it is not past, wait at the joint itself
                 let d = before - to_joint - u.half_len;
                 let l = if d >= 0.0 {
-                    Lead { gap: d - me.front, speed: u.speed, acc: 0.0 }
+                    Lead { gap: d - me.front, speed: u.speed, acc: 0.0, relation: LeadRelation::Merge }
                 } else {
-                    Lead { gap: (before - 1.0 - me.front).max(0.0), speed: 0.0, acc: 0.0 }
+                    Lead { gap: (before - 1.0 - me.front).max(0.0), speed: 0.0, acc: 0.0, relation: LeadRelation::Merge }
                 };
                 if best.map(|b| l.gap < b.gap).unwrap_or(true) {
                     best = Some(l);
