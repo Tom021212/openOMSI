@@ -317,14 +317,14 @@ pub fn queued_exit_vehicle(
     way: &[(usize, f32)],
     exit: (usize, f32),
     need: f32,
-    occupied: impl IntoIterator<Item = (usize, f32, f32)>,
-) -> Option<(f32, f32, usize)> {
+    occupied: impl IntoIterator<Item = (usize, f32, f32, usize)>,
+) -> Option<(f32, f32, usize, usize)> {
     let start = way
         .iter()
         .position(|&(lane, distance)| lane == exit.0 && (distance - exit.1).abs() < 0.01)?;
     occupied
         .into_iter()
-        .filter_map(|(lane, rear, speed)| {
+        .filter_map(|(lane, rear, speed, car)| {
             let offset = way[start..]
                 .iter()
                 .take_while(|&&(_, distance)| distance - exit.1 < need)
@@ -332,10 +332,10 @@ pub fn queued_exit_vehicle(
                 .map(|&(_, distance)| distance - exit.1)?;
             let space = offset + rear;
             let will = space + speed.max(0.0).powi(2) / (2.0 * EXIT_BRAKE);
-            (will < need).then_some((will, space, speed, lane))
+            (will < need).then_some((will, space, speed, lane, car))
         })
         .min_by(|a, b| a.0.total_cmp(&b.0))
-        .map(|(_, space, speed, lane)| (space, speed, lane))
+        .map(|(_, space, speed, lane, car)| (space, speed, lane, car))
 }
 
 /// A vehicle the AI does not drive, put onto the lanes for the right of way: the street
@@ -823,10 +823,10 @@ impl TrafficSim {
             let occupied = on_lane.iter().flat_map(|(&lane, cars)| {
                 cars.iter().filter_map(move |&(j, s, _, passing)| {
                     // (one standing aside for this emergency vehicle is no queue to it)
-                    (!passing && j != i && !self.aside_for(j, i)).then_some((lane, s - all_cars[j].tail, all_cars[j].state.speed))
+                    (!passing && j != i && !self.aside_for(j, i)).then_some((lane, s - all_cars[j].tail, all_cars[j].state.speed, j))
                 })
             });
-            if let Some((space, speed, lane)) = queued_exit_vehicle(way, exit, need_all, occupied) {
+            if let Some((space, speed, lane, blocker)) = queued_exit_vehicle(way, exit, need_all, occupied) {
                 // (a car within its distance to decide looks across the junction however
                 // long it is: with the exit taken only within 40 m of the car, a big
                 // junction's exit came into view when the car could no longer stop for it,
@@ -846,7 +846,7 @@ impl TrafficSim {
                         .and_then(|v| v.iter().filter(|e| !e.3 && e.0 != i).min_by(|a, b| (a.1 - self.cars[a.0].tail).total_cmp(&(b.1 - self.cars[b.0].tail))))
                         .map(|e| self.cars[e.0].id);
                     if explain {
-                        why.push(format!("exit {} full on lane {lane} ({space:.1} m, {promised:.1} m promised)", exit.0));
+                        why.push(format!("exit {} full on lane {lane}: car {} at {:.1} m/s, {space:.1} m free, needs {need_all:.1} m ({promised:.1} m promised)", exit.0, self.cars[blocker].id, speed, need_all));
                     }
                     return (true, last);
                 }
