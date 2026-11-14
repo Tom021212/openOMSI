@@ -248,12 +248,12 @@ mod near_pass_tests {
     #[test]
     fn genuinely_crossing_paths_remain_conflicts() {
         let a = LaneBuilder::polyline(
-            vec![DVec3::new(0.0, 0.0, 0.0), DVec3::new(100.0, 0.0, 0.0)],
+            vec![DVec3::new(0.0, 0.0, 0.0), DVec3::new(50.0, 0.0, 0.0), DVec3::new(100.0, 0.0, 0.0)],
             LaneKind::Street,
             3.0,
         );
         let b = LaneBuilder::polyline(
-            vec![DVec3::new(50.0, -50.0, 0.0), DVec3::new(50.0, 50.0, 0.0)],
+            vec![DVec3::new(50.0, -50.0, 0.0), DVec3::new(50.0, 0.0, 0.0), DVec3::new(50.0, 50.0, 0.0)],
             LaneKind::Street,
             3.0,
         );
