@@ -166,7 +166,7 @@ fn near_pass(a: &Lane, b: &Lane) -> Option<(f32, f32)> {
     let (_, ha) = a.at(sa);
     let (_, hb) = b.at(sb);
     let angle = wrap_deg(hb - ha).abs();
-    if angle < 15.0 || angle > 165.0 {
+    if angle < 15.0 {
         return None;
     }
     Some((sa, sb))
