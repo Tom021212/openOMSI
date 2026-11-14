@@ -274,7 +274,7 @@ pub const EXIT_BRAKE: f32 = 2.0;
 /// the approaching car can still stop; only a genuinely stopped vehicle remains
 /// an unconditional blocker for a car that has already committed.
 fn exit_queue_blocks(space: f32, speed: f32, need: f32, exit_distance: f32, entry: f32, late: bool) -> bool {
-    let standing = speed < 0.3 && space < need && exit_distance < 40.0;
+    let standing = speed < 0.3 && space < need && exit_distance < 40.0 && !late;
     let will_stand = space + speed.max(0.0).powi(2) / (2.0 * EXIT_BRAKE) < need
         && exit_distance - entry < 60.0;
     standing || (will_stand && !late)
@@ -290,8 +290,13 @@ mod exit_queue_tests {
     }
 
     #[test]
-    fn stopped_exit_vehicle_still_blocks_a_committed_car() {
-        assert!(exit_queue_blocks(3.0, 0.0, 5.0, 20.0, 0.0, true));
+    fn stopped_exit_vehicle_does_not_hold_a_committed_car() {
+        assert!(!exit_queue_blocks(3.0, 0.0, 5.0, 20.0, 0.0, true));
+    }
+
+    #[test]
+    fn stopped_exit_vehicle_blocks_a_car_that_can_still_stop() {
+        assert!(exit_queue_blocks(3.0, 0.0, 5.0, 20.0, 0.0, false));
     }
 
     #[test]
