@@ -303,7 +303,8 @@ fn same_path_following_and_merge_leads_are_classified_separately() {
     let mut net = Network {
         lanes: vec![
             street(DVec3::new(-100.0, 0.0, 0.0), 90.0, 100.0),
-            street(DVec3::new(0.0, -100.0, 0.0), 0.0, 100.0),
+            // A shallow second approach that converges on the same endpoint.
+            street(DVec3::new(-100.0, -10.0, 0.0), 84.289406, 100.498756),
             street(DVec3::ZERO, 90.0, 100.0),
         ],
         ..Default::default()
