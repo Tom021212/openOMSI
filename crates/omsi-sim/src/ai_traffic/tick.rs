@@ -750,7 +750,7 @@ impl TrafficSim {
             // Keep the player as the head of this queue too. Without this marker,
             // standing_queue cannot see that the first AI car is waiting behind
             // the player's bus, so the 25-second fallback can propagate pass_room.
-            Some(usize::MAX) if player_standing > 10.0 => Some((usize::MAX, l.gap)),
+            Some(usize::MAX) if player_standing > 10.0 => Some((u64::MAX, l.gap)),
             _ => None,
         });
         // Something that may stand for a while (a bus at its stop, the player's bus that
