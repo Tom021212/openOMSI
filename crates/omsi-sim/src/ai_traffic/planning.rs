@@ -459,7 +459,14 @@ impl TrafficSim {
                 // otherwise reserve its own pass_room behind the preceding queued car,
                 // making the gaps grow along the queue.
                 o.standing_for(self.day_time) > 4.0
-                    || (o.stopped > 25.0 && !o.held && self.cars[i].stopped > 6.0)
+                    || (o.stopped > 25.0
+                        && !o.held
+                        && self.cars[i].stopped > 6.0
+                        // A car deep in a queue must not become a new "obstacle"
+                        // just because it has itself been waiting for 25 seconds.
+                        // Otherwise every follower reserves pass_room again and
+                        // the gaps grow farther back through the queue.
+                        && !self.standing_queue(j).1)
             }
             Some(_) => player_standing.min(self.cars[i].since_player_at_light) > 10.0,
             None => parked_ahead,
