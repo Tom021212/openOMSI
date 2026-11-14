@@ -20,7 +20,7 @@ pub mod way;
 mod extend_tests;
 
 pub use ai_state::{
-    arrival_time, ramp_progress_for, AiState, BodyLink, Envelope, Lead, LaneChange, BODY_MAX_LEAD, BODY_SLACK,
+    arrival_time, ramp_progress_for, AiState, BodyLink, Envelope, Lead, LeadRelation, LaneChange, BODY_MAX_LEAD, BODY_SLACK,
     EMERGENCY_LIMIT_FACTOR, EMERGENCY_LIMIT_PLUS, JERK, MAX_BRAKE, ORDINARY_BRAKE, SIGNAL_BEFORE_CHANGE,
 };
 pub use extend::LINK_TOLERANCE;
