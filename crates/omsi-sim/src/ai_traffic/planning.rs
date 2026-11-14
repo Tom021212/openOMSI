@@ -489,6 +489,12 @@ impl TrafficSim {
             let Some((id, gap)) = self.cars[k].lead_info else {
                 break;
             };
+            // The player is not in the AI car index, but can still head a
+            // stationary queue (for example, when the player parks a bus).
+            if id == usize::MAX {
+                long = true;
+                break;
+            }
             let Some(&n) = self.index_of.get(&id) else {
                 break;
             };
