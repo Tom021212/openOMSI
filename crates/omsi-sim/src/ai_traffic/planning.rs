@@ -146,6 +146,7 @@ impl TrafficSim {
             None
         } else {
             self.obstacle_from(i, me.lane, me.s, Some(&plan), look, by_lane)
+                .map(|(d, v, j)| (d, v, j, LeadRelation::SamePath))
         };
         if let Some(c) = me.change {
             // along the way it has chosen from the new lane
@@ -153,7 +154,7 @@ impl TrafficSim {
                 self.obstacle_from(i, c.to, c.s_to, Some(&me.change_plan), look, by_lane)
             {
                 if best.map(|b| o.0 < b.0).unwrap_or(true) {
-                    best = Some(o);
+                    best = Some((o.0, o.1, o.2, LeadRelation::SamePath));
                 }
             }
         }
@@ -244,7 +245,7 @@ impl TrafficSim {
                                 ((before - my_clear).max(0.0), 0.0)
                             };
                             if best.map(|b| d < b.0).unwrap_or(true) {
-                                best = Some((d, v, j));
+                                best = Some((d, v, j, LeadRelation::Merge));
                             }
                         }
                     }
@@ -253,12 +254,13 @@ impl TrafficSim {
                 from = next;
             }
         }
-        best.map(|(d, v, j)| {
+        best.map(|(d, v, j, relation)| {
             (
                 Lead {
                     gap: d - me.front,
                     speed: v,
                     acc: if v > 0.1 { self.cars[j].state.acc } else { 0.0 },
+                    relation,
                 },
                 j,
             )
