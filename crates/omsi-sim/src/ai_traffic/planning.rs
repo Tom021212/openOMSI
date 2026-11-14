@@ -491,7 +491,7 @@ impl TrafficSim {
             };
             // The player is not in the AI car index, but can still head a
             // stationary queue (for example, when the player parks a bus).
-            if id == usize::MAX {
+            if id == u64::MAX {
                 long = true;
                 break;
             }
