@@ -454,12 +454,12 @@ impl TrafficSim {
         match who {
             Some(j) if j < self.cars.len() => {
                 let o = &self.cars[j];
-                // a bus at its stop, or a car that has stood for long with nothing holding
-                // it (not the head of a queue that waits for a light, a junction or a car),
-                // or the end of a queue standing behind a bus at its stop
+                // Only the actual stationary obstacle gets the extra pull-out room.
+                // Do not propagate "standing" through a queue: each following car would
+                // otherwise reserve its own pass_room behind the preceding queued car,
+                // making the gaps grow along the queue.
                 o.standing_for(self.day_time) > 4.0
                     || (o.stopped > 25.0 && !o.held && self.cars[i].stopped > 6.0)
-                    || (o.stopped > 3.0 && self.standing_queue(j).1)
             }
             Some(_) => player_standing.min(self.cars[i].since_player_at_light) > 10.0,
             None => parked_ahead,
