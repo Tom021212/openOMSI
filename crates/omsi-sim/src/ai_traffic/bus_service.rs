@@ -350,9 +350,9 @@ const DOORS_GIVE_UP: f32 = 45.0;
 const STOP_REACH: f32 = 80.0;
 /// This near its stop a timetable bus settles whether it stops there at all (Omsi.exe
 /// 0x7da5b5: 50 m): not when nobody aboard wants to get off and nobody waits there,
-/// unless it is the trip's first or last stop or the bus is more than `EARLY_STOP` early.
+/// unless it is the trip's first or last stop, a layover, or the profile explicitly says
+/// to stop there (including its "serve when early" setting).
 const SKIP_DECIDE: f32 = 50.0;
-const EARLY_STOP: f64 = 120.0;
 const EARLY_STOP_SHORT: f64 = 20.0;
 
 /// What the service needs of the world this frame.
@@ -549,15 +549,15 @@ impl BusService {
         self.phase_t = 0.0;
     }
 
-    /// A stop it serves whoever wants it or not: the trip's first (a layover) and last, the
-    /// ones its timetable says it always serves (`[profile_otherstopping]` 1 or 4 - the
-    /// editor's "stop" setting on its own), and any stop it would reach more than
-    /// `EARLY_STOP` early (`EARLY_STOP_SHORT` at a stop marked for it).
+    /// A stop it serves whoever wants it or not: the trip's first (a layover) and last,
+    /// the ones its timetable says it always serves (`[profile_otherstopping]` 1 or 4),
+    /// and a stop marked to be served when early (kind 3, more than
+    /// `EARLY_STOP_SHORT` before departure). An ordinary on-demand stop is never forced
+    /// just because the bus is early: its profile setting must remain authoritative.
     fn must_serve(&self, stop: &Stop, day_time: f64) -> bool {
         let last = (self.stops.len() == 1 && !self.route_open) || self.last_stop == Some(stop.id);
         let early = stop.depart - day_time;
         last || self.layover
-            || early > EARLY_STOP
             || self.always.contains(&stop.id)
             || (early > EARLY_STOP_SHORT && self.serve_early.contains(&stop.id))
     }
