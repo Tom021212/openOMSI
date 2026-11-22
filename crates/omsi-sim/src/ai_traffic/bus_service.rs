@@ -1081,9 +1081,22 @@ impl BusService {
                     .lanes
                     .get(st.lane)
                     .is_some_and(|l| l.kind == LaneKind::Rail);
-                self.serve = Some(
-                    rail || self.must_serve(&stop, ctx.day_time) || ctx.wanted.unwrap_or(true),
-                );
+                let must_serve = self.must_serve(&stop, ctx.day_time);
+                let serve = rail || must_serve || ctx.wanted.unwrap_or(true);
+                if ctx.debug || omsi_cfg::flags::OMSI_DEBUG_STOPS.is_set() {
+                    log::info!(
+                        "t={:.1}: timetable bus {} stop decision {}: serve={}, wanted={:?}, must_serve={}, rail={}, distance={:.1}m",
+                        ctx.day_time,
+                        ctx.id,
+                        stop.id,
+                        serve,
+                        ctx.wanted,
+                        must_serve,
+                        rail,
+                        d
+                    );
+                }
+                self.serve = Some(serve);
             }
             if self.serve == Some(false) {
                 if ctx.debug || omsi_cfg::flags::OMSI_DEBUG_STOPS.is_set() {
