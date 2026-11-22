@@ -70,7 +70,9 @@ fn only_trip_ends_and_explicit_profile_settings_force_an_on_demand_stop() {
     let stop = |id: i64, depart: f64| Stop::from_tuple((0, 0.0, 0.0, depart, id, 0.0));
     let mut s = BusService::new(vec![stop(1, 100.0), stop(2, 200.0), stop(3, 300.0)]);
     s.last_stop = Some(3);
-    // An on-demand intermediate stop remains skippable, even when the bus is very early.
+    // An on-demand intermediate stop is never forced by the timetable clock:
+    // not one second early, and not several minutes early.
+    assert!(!s.must_serve(&stop(2, 200.0), 199.0));
     assert!(!s.must_serve(&stop(2, 200.0), 150.0));
     assert!(!s.must_serve(&stop(2, 200.0), 70.0));
     // The trip's terminus, and the last stop it knows of with the route complete.
