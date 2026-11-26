@@ -378,6 +378,47 @@ fn plain(f: &Fixture, mut net: Network) -> TrafficSim {
 /// Lane of the crossroads (`crossroads`): 0..4 in, 4..8 the junction's paths (24 m), 8..12
 /// out (`exit` m).
 #[test]
+/// A long northbound path through one junction object, with the east-west paths
+/// crossing it near the entrance. The exit begins 68 m beyond the entrance.
+fn long_crossroads() -> Network {
+    let mut net = crossroads(150.0);
+    // Extend the northbound path (lane 4) from 24 m to 80 m and move its exit.
+    net.lanes[4] = object(street(DVec3::new(1.75, -12.0, 0.0), 0.0, 80.0), 1, 0);
+    net.lanes[8] = street(DVec3::new(1.75, 68.0, 0.0), 0.0, 150.0);
+    for lane in net.lanes.iter_mut() {
+        lane.next.clear();
+    }
+    net.link(1.5);
+    net
+}
+
+#[test]
+fn a_queue_deep_inside_a_long_junction_does_not_keep_the_entrance_empty() {
+    // The lead car is well beyond the east-west crossing paths. The following car
+    // should enter the long junction and queue behind it, rather than wait at the edge.
+    let f = Fixture::new();
+    let mut t = plain(&f, long_crossroads());
+    let ahead = car(&mut t, &f, 4, 50.0, 0x40, 0.0);
+    let me = car(&mut t, &f, 0, 100.0, 0x41, 8.0);
+    for _ in 0..(20.0 / super::fixed_step::SIM_DT) as usize {
+        hold_still(&mut t, ahead);
+        t.tick(super::fixed_step::SIM_DT, None);
+    }
+    let c = get(&t, me);
+    assert_eq!(
+        c.state.lane, 4,
+        "it left the long junction empty (lane {} s {:.1})",
+        c.state.lane,
+        c.state.s
+    );
+    assert!(
+        c.state.s > 12.0 && c.state.speed < 0.1,
+        "it should queue beyond the crossing, at s {:.1} with speed {:.1}",
+        c.state.s,
+        c.state.speed
+    );
+}
+
 fn nobody_follows_a_standing_queue_into_a_junction() {
     // the car ahead stands in the junction's path just past the middle, 20 m in: a car
     // following it would stand with its rear across the east-west paths
