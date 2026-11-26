@@ -377,7 +377,6 @@ fn plain(f: &Fixture, mut net: Network) -> TrafficSim {
 
 /// Lane of the crossroads (`crossroads`): 0..4 in, 4..8 the junction's paths (24 m), 8..12
 /// out (`exit` m).
-#[test]
 /// A long northbound path through one junction object, with the east-west paths
 /// crossing it near the entrance. The exit begins 68 m beyond the entrance.
 fn long_crossroads() -> Network {
@@ -419,6 +418,7 @@ fn a_queue_deep_inside_a_long_junction_does_not_keep_the_entrance_empty() {
     );
 }
 
+#[test]
 fn nobody_follows_a_standing_queue_into_a_junction() {
     // the car ahead stands in the junction's path just past the middle, 20 m in: a car
     // following it would stand with its rear across the east-west paths
